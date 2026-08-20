@@ -1,0 +1,55 @@
+---
+title: Maturity & exit
+description: Redeeming PT at face value, claiming YT yield, and unwinding an expired position in one call.
+icon: CalendarClock
+---
+
+At maturity the market's [exchange rate](/concepts/exchange-rate) locks and
+positions freeze in **asset value**. Nothing expires, nothing is liquidated, and
+there is no deadline to exit — but no new yield accrues to YT either.
+
+## Redeeming PT
+
+```
+YieldManager::redeem_principal(from, pt_amount)
+```
+
+Available **after maturity only**. Burns PT and returns vault shares at
+`max(live_vault_rate, locked_rate)`, so PT always pays exactly face value:
+
+- The **locked rate is a floor**, so a vault-rate dip after maturity cannot
+  underpay you.
+- Any post-maturity **appreciation stays in the yield manager** as surplus, which
+  a permissionless `collect_surplus` sweeps to the protocol treasury. That surplus
+  counter only ever holds shares no user has a claim on, so PT redemption and YT
+  claims stay open — and solvent — indefinitely.
+
+## Claiming YT yield
+
+`YieldToken::claim_yield` pays out the yield accrued to your YT and burns dust YT
+past maturity.
+
+<Callout type="warn">
+**Late claims pay locked value, not appreciated shares.** After the rate locks, a
+claim pays the number of shares that its locked-rate *asset value* buys at the
+*live* rate. If the vault kept growing, that is fewer shares than the frozen
+accrual.
+
+Two claims of the same accrual made at different times receive different share
+counts — but the same asset value. This is the intended "no new yield after
+maturity" semantics.
+</Callout>
+
+## Exiting everything at once
+
+```
+Router::exit_expired(vault, maturity, to, lp_shares, min_shares_out)
+```
+
+A one-call unwind of an expired position. It withdraws your LP position, redeems
+your **entire** PT balance, sweeps YT-accrued yield via `claim_yield`, and bounds
+the total vault shares delivered by `min_shares_out`.
+
+`exit_expired_to_asset` does the same and redeems the proceeds through the vault
+so you end up holding the base asset. Note its `sweep_allowance` behaviour — see
+[Zaps](/using-ybc/zaps).

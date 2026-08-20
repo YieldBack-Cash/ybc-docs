@@ -1,6 +1,69 @@
 ---
 title: Introduction
-description: Documentation for the YBC protocol.
+description: An introduction to YieldBack.Cash (YBC).
+icon: Rocket
 ---
 
-Documentation is in progress. Pages live in `content/docs`.
+**YieldBack.Cash (YBC)** is a Soroban protocol on Stellar for trading interest rate
+derivatives. It takes a yield-bearing asset and splits it into two tradable halves:
+a fixed-rate leg and a variable-rate leg.
+
+## The core idea
+
+Deposit vault shares — any 4626-style yield-bearing token, such as a Blend vault
+share — and receive equal amounts of two tokens:
+
+| Token | Name | What it entitles you to |
+|-------|------|-------------------------|
+| **PT** | Principal Token | The principal, redeemable at face value after maturity. A zero-coupon claim: buy it below face value and your return is locked in the moment you buy. |
+| **YT** | Yield Token | All variable yield the deposit accrues until maturity. Leveraged, directional exposure to the interest rate itself. |
+
+Held together, PT and YT are always redeemable back into the original vault
+shares. Held apart, they are two different bets on the same rate.
+
+```
+deposit vault shares  →  mint equal PT + YT
+PT + YT together      →  redeem back to vault shares (before maturity)
+```
+
+## Who it's for
+
+<Cards>
+  <Card title="Fixed yield seekers" icon={<span>🔒</span>}>
+    Buy PT at a discount and hold to maturity. Your rate is fixed at purchase and
+    is not affected by what the underlying vault does afterwards.
+  </Card>
+  <Card title="Rate speculators" icon={<span>📈</span>}>
+    Buy YT to take amplified exposure to a vault's future yield, or sell it to
+    hedge yield you already earn elsewhere.
+  </Card>
+  <Card title="Liquidity providers" icon={<span>💧</span>}>
+    Supply PT and vault shares to a market's AMM and earn trading fees on both
+    legs.
+  </Card>
+</Cards>
+
+## Where to go next
+
+<Cards>
+  <Card
+    title="Core concepts"
+    href="/concepts/tokens"
+    description="The three tokens, what a market is, and the exchange rate that prices everything."
+  />
+  <Card
+    title="Using YBC"
+    href="/using-ybc/split-and-recombine"
+    description="Splitting, trading, providing liquidity, zaps, and redeeming at maturity."
+  />
+  <Card
+    title="Protocol architecture"
+    href="/protocol/architecture"
+    description="The contracts, how they call each other, and where the trust boundaries sit."
+  />
+  <Card
+    title="Risks"
+    href="/concepts/risks"
+    description="What you are trusting when you deposit, and what nobody can do to help you."
+  />
+</Cards>

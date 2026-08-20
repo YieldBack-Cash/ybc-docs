@@ -1,0 +1,79 @@
+---
+title: Markets
+description: A market is one instance of the protocol, identified by a vault and a maturity date.
+icon: Layers
+---
+
+import { Step, Steps } from 'fumadocs-ui/components/steps';
+
+A **market** is one instance of the protocol, uniquely identified by the pair
+`(vault, maturity)`.
+
+Every market is fully self-contained. It deploys its own yield manager, PT, YT
+and AMM pool, and those contracts touch only that market's vault. Markets never
+share state, so **one market can never affect another**.
+
+Different maturities on the same vault coexist as entirely independent markets.
+The same vault with a March and a June maturity gives you two separate PTs, two
+separate YTs and two separate pools.
+
+## Creating a market
+
+Market creation is **permissionless** — anyone may call `create_market` on the
+factory with a vault, a maturity, and the curve parameters (`current_apy`,
+`apy_min`, `apy_max`, `fee_apy`) that shape the pool's pricing.
+
+The factory then:
+
+<Steps>
+<Step>
+Validates the inputs. Maturity must be strictly in the future and within
+`MAX_MATURITY_HORIZON` (10 years); the AMM constructor bounds the APY band and
+the fee.
+</Step>
+<Step>
+Refuses a duplicate `(vault, maturity)`. At most one market exists per pair.
+</Step>
+<Step>
+Deploys the **yield manager**, whose constructor seeds the initial exchange rate
+from the vault.
+</Step>
+<Step>
+Deploys **PT** and **YT**, both owned by the yield manager.
+</Step>
+<Step>
+Deploys the **AMM pool** with the APY-derived curve parameters, and registers it
+with the yield manager as the sole trusted flash-swap driver.
+</Step>
+<Step>
+Records the market and emits `MarketCreated`, including the creator address so
+off-chain curation can decide which markets to surface.
+</Step>
+</Steps>
+
+## Isolation is the safety model
+
+Because creation is open, a market can be created around a vault that is broken
+or outright malicious. That is contained by design: a malicious vault can only
+harm the users who opted into *its* market.
+
+<Callout type="warn">
+"Permissionless" does not mean "vetted". Which markets appear in a user interface
+is an off-chain curation decision. See [Vault integration](/protocol/vault-integration)
+for what the protocol assumes about a vault but cannot verify.
+</Callout>
+
+## Markets are immutable
+
+`create_market` stamps the factory's current Wasm hashes into the market's yield
+manager, PT, YT and pool. None of those four expose an upgrade entrypoint, so a
+market can **never** adopt a later version of the code — including its fee
+configuration and treasury address, which have no setters.
+
+Only the two singletons can be replaced: the factory is upgradeable, and the
+router is stateless enough that a new one works against existing markets
+untouched.
+
+The trade-off is deliberate. There is no pause switch and no admin lever over a
+live market; in exchange, what you read at entry is what the market will do
+forever. Shipping a contract-level fix means creating new markets.

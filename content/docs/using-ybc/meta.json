@@ -1,0 +1,5 @@
+{
+  "title": "Using YBC",
+  "icon": "ArrowLeftRight",
+  "pages": ["split-and-recombine", "trading", "zaps", "maturity"]
+}

@@ -1,0 +1,44 @@
+---
+title: Split & recombine
+description: Turning vault shares into PT + YT, and back again.
+icon: Split
+---
+
+The two operations that create and destroy PT/YT pairs. Both are exact inverses
+of each other and both go through the market's yield manager.
+
+## Split — deposit V, receive PT + YT
+
+```
+YieldManager::deposit(from, shares_amount)
+```
+
+Pulls `shares_amount` of vault shares into the yield manager's custody, then
+mints `shares_amount × rate / 1e7` of **both** PT and YT to you.
+
+You now hold the fixed leg and the variable leg separately, and can sell either
+one while keeping the other. Selling the YT locks in a fixed rate on the whole
+position; selling the PT leaves you with pure rate exposure.
+
+<Callout type="warn">
+`deposit` is rejected after maturity. Once a market matures there is no new yield
+to split.
+</Callout>
+
+## Recombine — PT + YT back to V
+
+```
+YieldManager::redeem_combined(from, amount)
+```
+
+Burns `amount` PT and `amount` YT together and returns `amount × 1e7 / rate`
+vault shares — the exact inverse of the split.
+
+This is disabled at maturity. After maturity, PT is redeemed on its own via
+[`redeem_principal`](/using-ybc/maturity) and YT has nothing left to claim.
+
+## Doing it in the base asset
+
+If you hold the vault's underlying asset (USDC, say) rather than vault shares,
+`zap_asset_for_split` and `zap_split_for_asset` wrap these two calls in a vault
+deposit or redeem so you never touch shares at all. See [Zaps](/using-ybc/zaps).

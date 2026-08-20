@@ -1,0 +1,117 @@
+---
+title: Architecture
+description: The contracts, how they call each other, and the design rules that hold them together.
+icon: Network
+---
+
+YBC is two singletons plus a set of per-market contracts. Users interact only
+with the singletons; everything below them is deployed fresh for each market.
+
+## Contract inventory
+
+| Contract | Role | Deployed |
+|----------|------|----------|
+| **Factory** | Deploys and records markets. Holds the canonical Wasm hashes for every other contract, plus the fee config snapshotted into new markets. Upgradeable, admin-owned. | Once |
+| **Router** | The single stable user entrypoint. Resolves a market via the factory, then forwards to that market's AMM or yield manager. Holds no funds. | Once |
+| **Treasury** | Passive fee sink. Receives the reserve cut of trading fees and post-maturity surplus. Never custodies user funds. | Once |
+| **Yield Manager** | The vault custodian and PT/YT mint/burn authority. Custodies all deposited V, tracks the exchange rate, and drives the flash-swap callbacks. | Per market |
+| **AMM (LiquidityPool)** | Trades **PT against V** on a yield-space curve. Never holds YT. | Per market |
+| **Principal Token (PT)** | Standard token; mint/burn restricted to its yield manager. | Per market |
+| **Yield Token (YT)** | Token that also tracks and distributes accrued yield; mint/burn restricted to its yield manager. | Per market |
+
+Public API surfaces live in the `*_interface` crates — `amm-interface`,
+`yield_manager_interface`, `principal_token_interface`, `yield_token_interface`,
+and `vault/vault_interface`. Those traits define each contract's surface and
+generate the typed clients used for cross-contract calls.
+
+## Runtime call graph
+
+Users interact only with the two singletons; everything below them is per-market.
+
+<Mermaid
+  chart={`
+flowchart TB
+    User([User])
+
+    subgraph Singletons
+        direction LR
+        Router[Router]
+        Factory[Factory]
+    end
+
+    subgraph Market["Per-market contracts"]
+        direction LR
+        AMM[AMM Pool]
+        YM[Yield Manager]
+        PT[Principal Token]
+        YT[Yield Token]
+    end
+
+    Vault[(Vault / V shares)]
+
+    User -->|create_market| Factory
+    User -->|swaps, LP, exit_expired| Router
+
+    Router -->|resolve market| Factory
+    Router -->|spot swaps, deposit, withdraw,<br/>flash_swap_pt / flash_swap_v| AMM
+    Router -->|redeem_principal, claim_yield<br/>during exit_expired| YM
+
+    AMM <-->|flash callback + PT/V repayment| YM
+    YM -->|mint / burn| PT
+    YM <-->|mint·burn / distribute_yield| YT
+    YM -->|custody transfers| Vault
+`}
+/>
+
+The two bidirectional relationships are the AMM ↔ yield manager flash callback,
+and yield manager ↔ YT (minting one way, `distribute_yield` the other).
+
+## Deployment wiring
+
+Deployment is a separate, one-time concern. The factory deploys each per-market
+contract and wires them together:
+
+<Mermaid
+  chart={`
+flowchart LR
+    Factory[Factory] -.->|deploy + set_token_contracts + set_pool| YM[Yield Manager]
+    Factory -.->|deploy| AMM[AMM Pool]
+    YM -.->|owns / is mint authority| PT[Principal Token]
+    YM -.->|owns / is mint authority| YT[Yield Token]
+`}
+/>
+
+Both yield-manager setters are **one-shot** and are spent during `create_market`,
+so the factory retains no ongoing control over a live market.
+
+## Design rule: the router custodies nothing
+
+Users interact through the **router** (and the factory, to create markets). The
+router authenticates the acting address, resolves the correct market through the
+factory, and forwards the transaction. It never holds funds.
+
+This does two things:
+
+1. **Market addresses stay out of user-signed payloads.** You sign an intent
+   against `(vault, maturity)`, not against a pool address.
+2. **A caller cannot point an operation at a pool the factory never deployed.**
+   Resolution goes through the factory's registry every time.
+
+The same rule survives the [zaps](/using-ybc/zaps): every leg names the user as
+the token-holding party, so a revert anywhere unwinds the chain and strands
+nothing in the router.
+
+## Where the code lives
+
+| Topic | Code |
+|-------|------|
+| Market creation & deployment wiring | `contracts/factory/src/contract.rs` |
+| Market records & lookup | `contracts/factory/src/storage.rs`, `contracts/router/src/contract.rs` |
+| Split & recombine | `contracts/yield/yield_manager/src/contract.rs` |
+| PT spot trading | `contracts/amm/amm/src/contract.rs` |
+| Curve & fixed-point math | `contracts/amm/amm/src/curve.rs`, `math.rs` |
+| YT flash swaps | `router/src/contract.rs`, `yield_manager/src/contract.rs`, flash traits in `amm-interface` |
+| Base-asset zaps | `contracts/router/src/contract.rs` (`zap_*`), SEP-56 surface in `vault/vault_interface` |
+| Vault-rate threading (pool reads the YM) | `contracts/amm/amm/src/vault.rs`, `yield_manager/src/contract.rs` |
+| Exchange rate | `contracts/yield/yield_manager/src/contract.rs` |
+| Events (off-chain integration) | each contract's `events.rs` |

@@ -1,0 +1,5 @@
+{
+  "title": "Protocol",
+  "icon": "Network",
+  "pages": ["architecture", "flash-swaps", "vault-integration"]
+}

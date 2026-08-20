@@ -1,0 +1,83 @@
+---
+title: Trading & liquidity
+description: Swapping PT and YT against a market's pool, and providing liquidity to it.
+icon: ArrowLeftRight
+---
+
+Every market has its own AMM pool. The pool trades **PT against V** on a
+yield-space curve; YT is synthesised on demand rather than held as a reserve.
+
+All user-facing operations go through the **router**, a single stable entrypoint
+that resolves the right market through the factory and forwards the call. The
+router never custodies funds.
+
+## Trading PT
+
+PT trades directly against the pool's two reserves:
+
+| Direction | Router call |
+|-----------|-------------|
+| Buy PT with vault shares | `swap_v_for_pt` |
+| Sell PT for vault shares | `swap_pt_for_v` |
+
+Buying PT below face value and holding to maturity is the fixed-rate trade — the
+discount at purchase *is* your locked-in rate.
+
+## Trading YT
+
+The pool holds no YT. Buying and selling YT is a **flash swap**: a PT borrow from
+the pool paired with a mint or burn in the yield manager, all inside one call.
+
+| Direction | Router call |
+|-----------|-------------|
+| Buy YT with vault shares | `swap_v_for_yt` |
+| Sell YT for vault shares | `swap_yt_for_v` |
+
+From your side it behaves like an ordinary swap — you pay the YT price and
+receive YT. The pool advances the rest of the mint and is repaid in PT within the
+same transaction. The mechanism is described in full under
+[Flash swaps](/protocol/flash-swaps).
+
+## Slippage
+
+Every user-facing swap takes an explicit bound and reverts if it is not met:
+
+| Operation | Bound |
+|-----------|-------|
+| Buying PT / YT | `max_v_in`, `v_in_max` |
+| Selling PT / YT | `min_v_out` |
+| Expired exits | `min_shares_out` |
+
+For [zaps](/using-ybc/zaps) the bound is expressed once, in base-asset terms
+(`min_asset_out` / `max_asset_in`), and covers pool price and vault rate together.
+
+## Providing liquidity
+
+```
+Router::deposit   →  AMM::deposit
+Router::withdraw  →  AMM::withdraw
+```
+
+An LP position is a share of the pool's `(PT, V)` reserves; shares are tracked
+per user by the AMM. LPs earn the trading fee on both legs, minus the protocol's
+reserve cut.
+
+A few properties worth knowing before supplying:
+
+- **Reserves are state-tracked, not balance-read.** Tokens sent directly to the
+  pool never enter pricing or share math, so donation attacks do nothing.
+- **`MINIMUM_LIQUIDITY` (100 shares) is burned on the first deposit**, and that
+  first deposit must exceed it. This is the standard defence against
+  first-depositor share inflation.
+- **The protocol's fee cut never enters LP accounting.** The reserve share of
+  each trade's fee is remitted to the treasury inline and excluded from the
+  stored reserves, so an LP withdrawal can never pay out protocol fees.
+- **The fee configuration is immutable.** Treasury address and reserve fee rate
+  are written once by the pool constructor and have no setter — read them at
+  entry knowing they can never move on a live market.
+
+To add liquidity starting from the base asset, `zap_asset_for_lp` takes a
+caller-supplied `pt_to_buy`. The pool only accepts its two legs in the current
+reserve ratio, so the frontend simulates for that figure; the router refunds
+whatever the pool declines, meaning a slightly wrong number costs a refund rather
+than a failed transaction.
