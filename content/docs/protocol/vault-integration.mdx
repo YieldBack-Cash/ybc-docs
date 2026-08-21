@@ -1,19 +1,18 @@
 ---
 title: Vault integration
-description: How YBC reads, deposits into, and redeems from a vault — and what it deliberately never asks it.
+description: How YBC reads, deposits into, and redeems from a vault.
 icon: Plug
 ---
 
-Every market sits on top of a vault, and the whole protocol touches it through
-**four functions**. This page is about that boundary: who calls what, when, and
-what the protocol refuses to take the vault's word for.
+Every market sits on top of a vault, and the vault's role is to abstract an underlying protocol.
+This page is about that integration.
 
 ## The four calls
 
 | Function | Called by | For |
 |----------|-----------|-----|
 | `query_asset()` | Router, Yield Manager | The underlying asset's address |
-| `convert_to_assets(shares)` | Yield Manager **only** | Assets per share — the raw observation behind the exchange rate |
+| `convert_to_assets(shares)` | Yield Manager | Assets per share — the raw observation behind the exchange rate |
 | `deposit(assets, receiver, from, operator)` | Router, Yield Manager | Asset → shares |
 | `redeem(shares, receiver, owner, operator)` | Router, Yield Manager | Shares → assets |
 
@@ -23,119 +22,57 @@ market without a per-vault adapter.
 
 ## Resolving the asset: once per invocation
 
-`query_asset` is read **live** on every call rather than snapshotted into the
-factory's market record — there is nothing to migrate and nothing that can go
-stale.
+`query_asset` is read live. It is resolved exactly
+**once per invocation** and threaded through every leg.
 
-But it is resolved exactly **once per invocation** and threaded through every
-leg, and that part is a security property rather than an optimisation:
+## Reading the rate
 
-<Callout type="warn">
-A vault that named one asset on the way in and a different one on the way out
-could otherwise be paid in the valuable token and settle in a worthless one.
+Only the yield manager ever calls `convert_to_assets`. The AMM prices its
+reserve through the yield manager's `get_exchange_rate`. The yield manager contract's exchange rate
+is the only rate honored throughout the protocol.
+
+PT settles at the yield manager's rate, not the vault's. The two agree while a
+vault only appreciates and separate the moment it loses value, since the yield
+manager [high-water-marks](/concepts/exchange-rate) while a raw vault read
+follows the value down.
+
+This also closes off the flash callbacks' `vault_rate` argument — now a
+misnomer, since the pool can only pass back the yield manager's own rate. The
+design previously relied on the pool passing a *raw* vault reading, a
+precondition that could be documented but not enforced.
+
+The pairing holds by construction: `create_market` threads one `vault` address
+into both contracts and `set_pool` is one-shot.
+
+
+## Reading the rate: once per invocation
+
+The rate is loaded once at the top of an invocation and reused for every
+conversion within it. A swap needs it at four points: reserve pricing before,
+the traded amount, the fee cut, reserve pricing after. All four read the
+same cached value.
+
+This is safe because the rate cannot move mid-invocation, so caching changes no
+result. It matters because `convert_to_assets` is not a cheap getter: a vault
+that lends its deposits may accrue interest and read its underlying reserves to
+answer, and that cost lands inside the caller's transaction budget.
+
+<Callout type="info">
+**Related material.** On Soroban the number of cross-contract calls is itself a
+scarce resource. See [Improve memory metering for WASM VMs](https://github.com/orgs/stellar/discussions/1970).
 </Callout>
 
-## Reading the rate: the AMM asks the yield manager, not the vault
+Past maturity the rate is locked, so it answers from the yield manager's storage
+without touching the vault at all.
 
-This is the part most worth understanding, because the obvious design is the
-wrong one.
+## Custody: the yield manager holds the collateral
 
-**Only the yield manager ever calls `convert_to_assets`.** The AMM prices its
-vault-share reserve through the **yield manager's** `get_exchange_rate`, not
-through a direct vault read.
-
-The reason is that PT is a claim on `face / rate` shares where `rate` is the
-*yield manager's* rate — because that is what `redeem_principal` actually settles
-at. The vault's own rate never enters PT's payout.
-
-The two numbers are identical for as long as a vault only appreciates, which is
-what hid the difference. **They separate the moment a vault loses value:** the
-yield manager [high-water-marks](/concepts/exchange-rate) while a direct vault
-read follows the value down. A pool reading the vault directly would then price
-PT face at the depressed rate, while the yield manager would only ever redeem it
-at the high-water mark — pricing PT above what it can pay out, for anyone holding
-it, in unlimited size for anyone willing to mint it.
-
-Reading the yield manager makes the pool price PT against the number that will
-actually settle it, in every vault regime.
-
-### What this does to the flash-swap rate hint
-
-The `vault_rate` argument on the flash callbacks is now a slight misnomer: the
-figure the pool passes is the **yield manager's own rate making a round trip**.
-The pool obtained it from `get_exchange_rate` to price the trade, which already
-committed the ratchet, so re-applying it in the yield manager is idempotent and
-the non-decreasing floor is a no-op.
-
-That is a *stronger* guarantee than the one the design used to rest on. Formerly
-the pool passed a raw vault reading and was trusted never to pass an
-already-high-water-marked one — a precondition that could only be documented, not
-enforced, and whose failure direction (a value too **high**) would have ratcheted
-the stored rate up permanently. The pool can no longer supply any value except
-the one already in storage.
-
-The pairing is guaranteed by construction rather than checked: `create_market`
-threads one `vault` address into both the yield manager and the pool's
-share-token slot, and `set_pool` is one-shot, so the two can never be re-pointed.
-
-## Reading the rate: once per invocation, and what it costs
-
-Against a lending vault a rate *read* is not cheap — Blend's `convert_to_assets`
-accrues interest and reads the underlying pool's reserve to answer.
-
-A swap needs the rate at four points: reserve pricing before the trade, the
-traded amount, the fee cut, and reserve pricing after. Making four calls is what
-pushed the flash-swap zaps past the per-transaction budget on testnet. The pool
-now loads it **once per invocation** and reuses it — the rate cannot move
-mid-invocation, so caching changes no result.
-
-Routing through the yield manager costs one extra contract frame:
-
-```text
-vault.convert_to_assets    8,124 stroops   (what the pool used to call)
-ym.get_exchange_rate      12,564 stroops   (what it calls now)
-```
-
-About 4,440 stroops per swap for the frame plus the yield manager's instance
-write — against a live lending vault the rate ratchets on nearly every ledger, so
-that write is the steady-state case rather than the exception. The underlying
-vault is still read exactly once per invocation, just through the yield manager.
-
-Two side effects worth knowing:
-
-- **Past maturity it is strictly cheaper.** The yield manager's rate is locked, so
-  it answers from its own storage without touching the vault at all.
-- **It keeps the yield manager's instance alive.** An expired yield-manager
-  instance bricks the whole market, so that TTL bump is wanted anyway.
-
-## Custody: the yield manager holds, the router never does
-
-The **yield manager** custodies every deposited vault share. When it redeems from
-its own custody it is owner and operator alike, so the vault's authorization is
-satisfied by invoker auth at execution time — nothing there ever enters a user's
-signature.
+the **yield manager** custodies every vault share, so when a user redeems it is both the `owner` and the `operator`
+with the user as the `receiver`.
 
 The **router** holds nothing, including during [zaps](/using-ybc/zaps). Every leg
 names the *user* as the token-holding party: a zap deposit passes the user as
-`from`, `receiver` and `operator` alike. A revert anywhere unwinds the chain and
-strands nothing.
-
-## Amounts are measured, never taken on trust
-
-SEP-56 leaves fees and rounding to the implementation, so **no quantity crossing
-the vault boundary is trusted as reported**. Every one is measured as a balance
-delta around the call:
-
-```rust
-let shares_before = vault_token.balance(to);
-VaultContractClient::new(e, vault).deposit(&assets, to, to, to);
-let shares_out = vault_token.balance(to) - shares_before;
-assert!(shares_out > 0, "vault minted no shares");
-```
-
-The same pattern covers redemption, and the caller's `min_asset_out` /
-`max_asset_in` bound is enforced against the measured figure. A vault that
-under-delivers fails the bound rather than passing a flattering return value.
+`from`, `receiver` and `operator` alike. A failure anywhere reverts the whole transaction.
 
 ## Signed amounts versus measured amounts
 
@@ -169,51 +106,3 @@ the simulation/execution drift this design exists to eliminate.
 
 In both cases the proceeds go straight to the user. The router's authority is
 only to *trigger* the conversion, never to redirect it.
-
-## What YBC deliberately never calls
-
-SEP-56 also declares `mint`, `withdraw`, `convert_to_shares`, `total_supply`,
-`total_assets`, four `max_*` and four `preview_*`. The subset is kept **exactly**
-minimal — every declared method is called somewhere, and nothing called is
-missing.
-
-That exactness is deliberate. Declaring a method the protocol never invokes is
-not free: **it reads as a requirement, and a vault that omits it looks
-incompatible when it is not.** `convert_to_shares` was declared once for symmetry
-with `convert_to_assets`; nothing called it, and blend-vault-v2 does not
-implement it. It was removed.
-
-Three exclusions are worth naming:
-
-**`preview_*`** would be the natural way to quote a trade, but a vault's quote is
-only advisory — settlement measures actual balance deltas and enforces the
-caller's bound, which is strictly more trustworthy. Depending on them would also
-pass against a fully compliant mock while failing against a production vault that
-omits them.
-
-<Callout type="info">
-**Frontends should call `preview_*` directly for display.** Quoting is a UI
-concern; the contracts deliberately do not do it.
-</Callout>
-
-**`max_*`** cannot be relied on to detect a vault with no liquidity right now —
-the reference implementations just convert the owner's balance and say nothing
-about availability.
-
-**`withdraw`** is skipped in favour of the share-denominated `redeem`: "convert
-exactly these shares" needs no preview round-trip and leaves no dust behind.
-
-## Two things SEP-56 does not guarantee
-
-The protocol depends on both, and neither is enforceable at this boundary:
-
-1. **Share value may fall.** The yield manager assumes a non-decreasing rate.
-2. **Fees are out of scope**, so `convert_to_assets` may overstate what `redeem`
-   actually pays out.
-
-A vault violating either leaves PT over-valued against backing that cannot cover
-it — a slow solvency drift rather than an error, and nothing on-chain detects it.
-Everything else a vault can get wrong fails loudly: the transaction reverts and
-the user keeps their position.
-
-What that means for choosing a market is covered under [Risks](/concepts/risks).

@@ -15,14 +15,18 @@ YieldManager::redeem_principal(from, pt_amount)
 ```
 
 Available **after maturity only**. Burns PT and returns vault shares at
-`max(live_vault_rate, locked_rate)`, so PT always pays exactly face value:
+`max(live_vault_rate, locked_rate)`. The rate divides, so flooring it caps the
+shares paid out:
 
-- The **locked rate is a floor**, so a vault-rate dip after maturity cannot
-  underpay you.
-- Any post-maturity **appreciation stays in the yield manager** as surplus, which
-  a permissionless `collect_surplus` sweeps to the protocol treasury. That surplus
-  counter only ever holds shares no user has a claim on, so PT redemption and YT
-  claims stay open — and solvent — indefinitely.
+- **If the vault kept growing**, you receive fewer shares worth more — exactly
+  face value. The freed difference stays in the yield manager as surplus, swept
+  to the treasury by a permissionless `collect_surplus`. That counter only ever
+  holds shares no user has a claim on, so redemption stays open and solvent
+  indefinitely.
+- **If the vault fell**, the locked rate floors the calculation, so you receive
+  the share count reserved at maturity and no more. Those shares are worth less
+  than face value and you bear that loss — the floor exists so a redemption
+  cannot draw more shares than its PT was backed by.
 
 ## Claiming YT yield
 

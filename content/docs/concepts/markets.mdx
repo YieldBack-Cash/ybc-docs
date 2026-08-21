@@ -19,7 +19,7 @@ separate YTs and two separate pools.
 
 ## Creating a market
 
-Market creation is **permissionless** — anyone may call `create_market` on the
+Market creation is **permissionless**. Anyone may call `create_market` on the
 factory with a vault, a maturity, and the curve parameters (`current_apy`,
 `apy_min`, `apy_max`, `fee_apy`) that shape the pool's pricing.
 
@@ -53,8 +53,8 @@ off-chain curation can decide which markets to surface.
 
 ## Isolation is the safety model
 
-Because creation is open, a market can be created around a vault that is broken
-or outright malicious. That is contained by design: a malicious vault can only
+Because creation is open, a market can be created around a vault that is
+malicious. That is contained by design: a malicious vault can only
 harm the users who opted into *its* market.
 
 <Callout type="warn">
@@ -66,14 +66,13 @@ for what the protocol assumes about a vault but cannot verify.
 ## Markets are immutable
 
 `create_market` stamps the factory's current Wasm hashes into the market's yield
-manager, PT, YT and pool. None of those four expose an upgrade entrypoint, so a
-market can **never** adopt a later version of the code — including its fee
-configuration and treasury address, which have no setters.
+manager, PT, YT and pool.
 
-Only the two singletons can be replaced: the factory is upgradeable, and the
-router is stateless enough that a new one works against existing markets
-untouched.
+| | Upgradeable? |
+|---|---|
+| Yield Manager, PT, YT, AMM Pool | **No.** Frozen at creation |
+| Factory, Treasury | **Yes**, in place, admin-gated. |
+| Router | **No**, but replaceable (holds only the factory address) |
 
-The trade-off is deliberate. There is no pause switch and no admin lever over a
-live market; in exchange, what you read at entry is what the market will do
-forever. Shipping a contract-level fix means creating new markets.
+A factory upgrade changes **future** markets only; it cannot reach into one
+already deployed.

@@ -1,13 +1,13 @@
 ---
 title: Trading & liquidity
 description: Swapping PT and YT against a market's pool, and providing liquidity to it.
-icon: ArrowLeftRight
+icon: CandlestickChart
 ---
 
 Every market has its own AMM pool. The pool trades **PT against V** on a
-yield-space curve; YT is synthesised on demand rather than held as a reserve.
+implied-rate curve; YT is synthesised on demand rather than held as a reserve.
 
-All user-facing operations go through the **router**, a single stable entrypoint
+The user-facing operations go through the **router**, a single stable entrypoint
 that resolves the right market through the factory and forwards the call. The
 router never custodies funds.
 
@@ -33,7 +33,7 @@ the pool paired with a mint or burn in the yield manager, all inside one call.
 | Buy YT with vault shares | `swap_v_for_yt` |
 | Sell YT for vault shares | `swap_yt_for_v` |
 
-From your side it behaves like an ordinary swap — you pay the YT price and
+From your side it behaves like an ordinary swap. You pay the YT price and
 receive YT. The pool advances the rest of the mint and is repaid in PT within the
 same transaction. The mechanism is described in full under
 [Flash swaps](/protocol/flash-swaps).
@@ -44,7 +44,7 @@ Every user-facing swap takes an explicit bound and reverts if it is not met:
 
 | Operation | Bound |
 |-----------|-------|
-| Buying PT / YT | `max_v_in`, `v_in_max` |
+| Buying PT / YT | `max_v_in`, `v_in_max` | TODO: im realizing this naming is asymetrical
 | Selling PT / YT | `min_v_out` |
 | Expired exits | `min_shares_out` |
 
@@ -73,8 +73,7 @@ A few properties worth knowing before supplying:
   each trade's fee is remitted to the treasury inline and excluded from the
   stored reserves, so an LP withdrawal can never pay out protocol fees.
 - **The fee configuration is immutable.** Treasury address and reserve fee rate
-  are written once by the pool constructor and have no setter — read them at
-  entry knowing they can never move on a live market.
+  are written once by the pool constructor and have no setter. They can be read at entry knowing they can never change in a live market.
 
 To add liquidity starting from the base asset, `zap_asset_for_lp` takes a
 caller-supplied `pt_to_buy`. The pool only accepts its two legs in the current

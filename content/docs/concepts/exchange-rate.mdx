@@ -1,48 +1,31 @@
 ---
 title: The exchange rate
-description: The monotonic, maturity-locked rate that denominates every mint and redemption.
+description: The monotonic, maturity-locked rate that every mint and redemption depends on.
 icon: Gauge
 ---
 
-The exchange rate is the spine of every mint and redeem calculation in a market.
+How much the underlying asset one vault share is worth, read from the vault, and
+fed to every mint and redeem. If a share is worth 1.05
+USDC, depositing 100 shares mints 105 PT and 105 YT.
 
-It is defined as **assets per `1e7` vault shares**, 1e7-scaled, and read from the
-vault's `convert_to_assets`. The yield manager stores it and applies one policy
-on top of the raw vault value.
+> It starts at the vault's rate, only ever moves **up**, and **freezes at
+> maturity**.
 
-## The rule
+**Live.** Each operation takes `max(stored, vault_rate)`. If the vault dips, the
+stored value holds where it was.
 
-> It starts at the vault's rate when the market is created, only ever moves **up**
-> while the market is live, and **freezes at maturity**.
-
-**Before maturity.** Each operation refreshes the stored rate to the vault's
-current rate, but never lets it fall below the stored value — every update takes
-`max(stored, vault_rate)`. So it climbs with the vault's yield and ignores any
-dips.
-
-**At maturity.** The rate locks at whatever value it last reached and never
-changes again.
+**At maturity.** It locks at whatever value it last reached.
 
 ## Why it matters
 
-This "only goes up, then freezes" behaviour is exactly what makes PT a fixed
-claim and YT a claim on appreciation:
-
-- **PT** redeems after maturity at `max(live_vault_rate, locked_rate)`. The lock
-  is a **floor on payout, not a cap** — it stops a late vault-rate dip from
-  underpaying face value, and any post-maturity appreciation stays in the yield
-  manager as protocol surplus rather than inflating PT.
-- **YT** captures precisely the appreciation between deposit and maturity.
-  Nothing accrues to it afterwards.
-
-## Rounding
-
-All conversions **floor**, and always in the protocol's favour. Mint amounts,
-share returns and accrued-yield payouts all round down, leaving dust in the yield
-manager rather than overpaying a user.
+- **PT** redeems at `max(live_rate, locked_rate)`. If the vault grew, you get
+  fewer shares worth more, with the difference kept as
+  protocol surplus. If it fell, your share count is capped at what the locked rate implies,
+  so the shortfall lands on you.
+- **YT** captures exactly the appreciation between deposit and maturity.
 
 <Callout type="warn">
-The exchange rate is only as honest as the vault reporting it. YBC does not try
-to prove a vault is truthful on-chain — it confines the blast radius to that one
-market instead. See [Risks](/concepts/risks).
+The rate is only as honest as the vault reporting it. YBC confines the blast
+radius to one market rather than proving vault honesty on-chain. See
+[Risks](/concepts/risks).
 </Callout>

@@ -10,13 +10,13 @@ a fixed-rate leg and a variable-rate leg.
 
 ## The core idea
 
-Deposit vault shares — any 4626-style yield-bearing token, such as a Blend vault
-share — and receive equal amounts of two tokens:
+The user deposits a vault share token as collateral and is minted equal amounts of
+two tokens:
 
 | Token | Name | What it entitles you to |
 |-------|------|-------------------------|
-| **PT** | Principal Token | The principal, redeemable at face value after maturity. A zero-coupon claim: buy it below face value and your return is locked in the moment you buy. |
-| **YT** | Yield Token | All variable yield the deposit accrues until maturity. Leveraged, directional exposure to the interest rate itself. |
+| **PT** | Principal Token | The principal, redeemable at face value after maturity. Mimics a zero coupon bond. |
+| **YT** | Yield Token | All variable yield the deposit accrues until maturity. Leveraged exposure to the interest rate. |
 
 Held together, PT and YT are always redeemable back into the original vault
 shares. Held apart, they are two different bets on the same rate.
@@ -29,17 +29,17 @@ PT + YT together      →  redeem back to vault shares (before maturity)
 ## Who it's for
 
 <Cards>
-  <Card title="Fixed yield seekers" icon={<span>🔒</span>}>
+  <Card title="Fixed yield seekers">
     Buy PT at a discount and hold to maturity. Your rate is fixed at purchase and
     is not affected by what the underlying vault does afterwards.
   </Card>
-  <Card title="Rate speculators" icon={<span>📈</span>}>
+  <Card title="Rate speculators">
     Buy YT to take amplified exposure to a vault's future yield, or sell it to
     hedge yield you already earn elsewhere.
   </Card>
-  <Card title="Liquidity providers" icon={<span>💧</span>}>
+  <Card title="Liquidity providers">
     Supply PT and vault shares to a market's AMM and earn trading fees on both
-    legs.
+    legs with exposure to the underlying yield.
   </Card>
 </Cards>
 

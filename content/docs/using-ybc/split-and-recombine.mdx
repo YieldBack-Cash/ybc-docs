@@ -32,7 +32,7 @@ YieldManager::redeem_combined(from, amount)
 ```
 
 Burns `amount` PT and `amount` YT together and returns `amount × 1e7 / rate`
-vault shares — the exact inverse of the split.
+vault shares. This is the exact inverse of a split.
 
 This is disabled at maturity. After maturity, PT is redeemed on its own via
 [`redeem_principal`](/using-ybc/maturity) and YT has nothing left to claim.

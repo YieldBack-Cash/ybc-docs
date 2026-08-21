@@ -1,90 +1,31 @@
 ---
 title: Risks
-description: What you are trusting when you deposit into a YBC market, and what nobody can do to help you.
+description: The vault behind a market is the main thing you are trusting, and nothing on-chain vets it.
 icon: TriangleAlert
 ---
 
-Read this before depositing. None of it is a defect — each item is a deliberate
-design trade-off — but each one changes what can happen to your position.
+**The vault behind a market is the main thing you are trusting, and no part of
+YBC verifies it.**
 
-## The vault is trusted on faith
+A market can be created around any vault by anyone. Nothing in the contracts
+checks that a vault is honest, solvent, or run by people you would lend to. A
+market existing is not a market being vetted.
 
-Every market is built on a vault you deposit into, and **YBC does not verify that
-vault is honest**. The [exchange rate](/concepts/exchange-rate) that prices every
-mint and redemption comes from the vault's own `convert_to_assets`, and PT face
-value is derived from it.
+## Why it matters
 
-A vault that loses share value, or charges a fee on the way out, leaves PT
-over-valued against backing that cannot cover it. That is a slow solvency drift
-rather than an error, and **nothing on-chain detects it**.
+The vault reports its own share value, and YBC prices every mint and redemption
+through that number. A vault that reports dishonestly, loses value, or charges a
+fee on the way out leaves PT worth more than the assets backing it.
 
-What YBC does instead is confine the damage: a market's contracts touch only its
-own vault, so a bad vault can only harm the people who opted into *that* market.
+There is also no way back. Markets are immutable and there is no pause switch, so
+if a vault turns bad there is no admin to freeze it and no upgrade to fix it.
 
-## A market existing is not a market being vetted
+## What that means for you
 
-[Market creation is permissionless](/concepts/markets). Anyone can spin one up
-around any vault, including a broken or malicious one, and the protocol will
-deploy it.
+**Vet the vault before you deposit.**
 
-Most bad vaults fail loudly — the transaction reverts and you keep your position.
-The dangerous case is the one above, which fails quietly. Deciding which markets
-are safe to surface is an **off-chain curation judgement**, not something the
-contracts enforce. See [Vault integration](/protocol/vault-integration) for how
-the protocol actually uses a vault, and which of its guarantees are assumed
-rather than checked.
+The one thing YBC does guarantee is containment: markets share no state, so a bad
+vault only reaches the people who deposited into *its* market.
 
-## There is no pause switch
-
-No admin can halt a live market. This cuts both ways:
-
-- **Nobody can freeze your funds.** There is no privileged party who can stop you
-  redeeming, and no key whose compromise locks you out.
-- **Nobody can rescue them either.** If a market turns out to be built on a bad
-  vault, there is no emergency stop and no on-chain intervention. Recovery is a
-  curation decision — stop surfacing the market — not a fix.
-
-## Markets are immutable
-
-`create_market` stamps the code into a market permanently. Its yield manager, PT,
-YT and pool expose no upgrade entrypoint, and its fee configuration and treasury
-address have **no setters at all**.
-
-So what you read at entry is what the market will do forever. A bug found later
-cannot be patched in place — it requires creating new markets and migrating.
-
-## Late YT claims pay locked value, not more shares
-
-<Callout type="warn">
-After maturity, a yield claim pays the number of shares that its locked-rate
-**asset value** buys at the **live** rate. If the vault kept growing, that is
-fewer shares than the frozen accrual showed.
-</Callout>
-
-Two claims of the same accrual made at different times receive **different share
-counts but the same asset value**. This is the intended "no new yield after
-maturity" behaviour, not a loss — but it surprises people who compare a share
-figure from before maturity against what they actually received.
-
-## What the protocol can never take
-
-For completeness, the limits on privilege:
-
-| Party | Can | Cannot |
-|-------|-----|--------|
-| Factory admin | Set the code and fee config used by **future** markets; upgrade the factory | Touch any already-deployed market — its setters are one-shot and already spent |
-| Treasury admin | Withdraw collected protocol fees; upgrade the treasury | Reach user funds. The treasury only ever receives the reserve cut of trading fees and post-maturity surplus, neither of which belongs to a user |
-| Market creator | Create a market around any vault | Nothing security-critical. The address is recorded only for off-chain curation |
-
-## Slippage
-
-Every user-facing swap takes an explicit bound and reverts if it is not met, so a
-sandwich attempt fails rather than executing at a bad price. For
-[zaps](/using-ybc/zaps) the bound is expressed once in base-asset terms and covers
-pool price and vault rate together.
-
----
-
-The full trust model, privilege tables, invariants and parameter bounds live in
-[`docs/SECURITY.md`](https://github.com/YieldBack-Cash/ybc-contracts/blob/main/docs/SECURITY.md)
-in the contracts repository, versioned alongside the code it describes.
+For how the protocol calls a vault, and which of its guarantees are assumed
+rather than checked, see [Vault integration](/protocol/vault-integration).

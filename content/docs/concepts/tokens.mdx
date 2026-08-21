@@ -1,6 +1,6 @@
 ---
 title: Tokens
-description: Vault shares, Principal Tokens, and Yield Tokens — the three assets that flow through a YBC market.
+description: Vault shares, Principal Tokens, and Yield Tokens.
 icon: Coins
 ---
 
@@ -8,8 +8,8 @@ Three token types move through every market.
 
 | Symbol | Name | What it is |
 |--------|------|------------|
-| **V** | Vault shares | The yield-bearing asset you bring in — a 4626-style vault share token (e.g. a Blend vault share). This is the unit of value that enters and leaves the protocol. |
-| **PT** | Principal Token | A zero-coupon claim on principal. Redeemable 1:1 for face value in V **after** maturity. The fixed-yield leg. |
+| **V** | Vault shares | The yield-bearing collateral, a 4626-style vault share token (e.g. a Blend vault share). |
+| **PT** | Principal Token | A zero-coupon bond, claim on principal. Denominated in the base asset: 1 PT redeems for 1 unit of it **after** maturity. The fixed-yield leg. |
 | **YT** | Yield Token | A claim on all variable yield the underlying V accrues until maturity. The variable-yield leg. |
 
 ## The conservation identity
@@ -25,27 +25,22 @@ Deposits mint PT and YT in **equal** amounts, and recombining burns them in equa
 amounts. Outside of post-maturity redemption, PT and YT supply always move
 together.
 
+That amount is the deposit's **asset value**, not its share count. Shares are what
+you hand over; the base asset is what PT and YT are denominated in.
+
+**Example.** A vault share is worth 1.05 USDC. You deposit 100 shares, and are
+minted 105 PT and 105 YT.
+
 ## What each token is worth
 
 - **PT** approaches face value as maturity nears and trades below it before then.
-  The discount *is* the fixed rate — lock it in by buying, and nothing the vault
-  does afterwards changes your payout.
+  The discount is the fixed rate. Lock in your implied rate by buying PT tokens.
 - **YT** is worth the yield still expected between now and maturity. It decays to
-  zero at maturity, having paid out along the way. A small amount of V buys
-  exposure to the yield of a much larger position, which is what makes YT a
-  leveraged rate bet.
+  zero at maturity. You can buy exposure to the yield of a much larger position,
+  which is what makes YT a leveraged rate bet.
 
 <Callout type="info">
-YT is never held by a market's AMM. It is created and destroyed on demand via
-flash swaps against PT — see [Flash swaps](/protocol/flash-swaps).
+The AMM's only reserves are PT and V. YT is synthesized from the `PT + YT = V` identity.
+Mints and trades are settled atomically. See [Flash swaps](/protocol/flash-swaps).
+
 </Callout>
-
-## Token behaviour
-
-**PT** is a standard token. Mint and burn are restricted to its market's yield
-manager; transfer, approve and `transfer_from` behave normally.
-
-**YT** additionally tracks accrued yield per holder and distributes it on
-`claim_yield`. It deliberately **omits allowance flows** — `approve`,
-`transfer_from` and `burn_from` are unsupported and will panic. Move YT with a
-direct `transfer`.

@@ -79,28 +79,18 @@ inside a callback, so those token contracts never call *back* into the yield
 manager for it. That call would be re-entry while the yield manager is on the
 stack, which the Soroban host rejects. The hint keeps the flow single-pass.
 
-The inbound `vault_rate` argument is a slight misnomer, and the reason matters.
-The pool does not read the vault — it prices the trade against the **yield
-manager's** `get_exchange_rate`, so the figure it passes back is the yield
-manager's own rate making a round trip.
+The inbound `vault_rate` is a misnomer: the pool does not read the vault, so the
+figure is the yield manager's own rate making a round trip. It reaches
+security-critical arithmetic — it divides `v_to_mint` — but the pool cannot
+supply any value except the one already in storage, so re-applying it is
+idempotent. The design previously relied on the pool passing a *raw* vault
+reading, a precondition that could be documented but not enforced.
 
-That closes off the parameter entirely. It reaches security-critical arithmetic —
-it divides `v_to_mint`, so an inflated value would mint against fewer shares —
-but the pool can no longer supply any value except the one already in storage.
-Re-applying it is idempotent and the non-decreasing floor is a no-op.
+**Pairing** holds by construction: `create_market` threads one `vault` value into
+both contracts, and `set_pool` is one-shot.
 
-The design used to rest on something weaker: the pool passed a raw vault reading
-and was trusted never to pass an already-high-water-marked one. That precondition
-could only be documented, not enforced, and its failure direction — a value too
-**high** — would have ratcheted the stored rate up permanently.
-
-**Pairing** is still guaranteed by construction rather than checked: `create_market`
-threads one `vault` value into both contracts, and `set_pool` is one-shot, so the
-two can never be re-pointed.
-
-Why the pool prices against the yield manager rather than the vault is covered in
-[Vault integration](/protocol/vault-integration) — briefly, PT settles at the
-yield manager's rate, and the two figures diverge the moment a vault loses value.
+Why the pool prices against the yield manager is covered in
+[Vault integration](/protocol/vault-integration).
 
 <Callout type="warn">
 The AMM and yield manager share the flash-callback ABI and are versioned as a

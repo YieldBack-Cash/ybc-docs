@@ -1,10 +1,10 @@
 ---
 title: Architecture
 description: The contracts, how they call each other, and the design rules that hold them together.
-icon: Network
+icon: Waypoints
 ---
 
-YBC is two singletons plus a set of per-market contracts. Users interact only
+YBC is two singletons plus a set of per-market contracts. Users interact primarily
 with the singletons; everything below them is deployed fresh for each market.
 
 ## Contract inventory
@@ -15,7 +15,7 @@ with the singletons; everything below them is deployed fresh for each market.
 | **Router** | The single stable user entrypoint. Resolves a market via the factory, then forwards to that market's AMM or yield manager. Holds no funds. | Once |
 | **Treasury** | Passive fee sink. Receives the reserve cut of trading fees and post-maturity surplus. Never custodies user funds. | Once |
 | **Yield Manager** | The vault custodian and PT/YT mint/burn authority. Custodies all deposited V, tracks the exchange rate, and drives the flash-swap callbacks. | Per market |
-| **AMM (LiquidityPool)** | Trades **PT against V** on a yield-space curve. Never holds YT. | Per market |
+| **AMM** | Trades **PT against V** on a time-aware curve. Never holds YT. | Per market |
 | **Principal Token (PT)** | Standard token; mint/burn restricted to its yield manager. | Per market |
 | **Yield Token (YT)** | Token that also tracks and distributes accrued yield; mint/burn restricted to its yield manager. | Per market |
 

@@ -7,8 +7,7 @@ icon: Zap
 import { Step, Steps } from 'fumadocs-ui/components/steps';
 
 Every core operation is denominated in **V** (vault shares). Zaps let you arrive
-and leave holding only the vault's underlying asset — USDC, say — and never think
-about shares at all. Each one wraps an existing operation in a vault deposit or
+and leave holding only the vault's underlying asset and never touch shares at all. Each one wraps an existing operation in a vault deposit or
 redeem.
 
 ## The zaps
@@ -32,21 +31,14 @@ nothing.
 </Step>
 <Step>
 **Slippage is bounded once, in base-asset terms.** A single `min_asset_out` or
-`max_asset_in` covers pool price *and* vault rate together — the only figure you
-actually care about. Per-leg share bounds are left deliberately wide.
+`max_asset_in` covers pool price *and* vault rate together.
 </Step>
 <Step>
-**Nothing trusts a vault's self-reported amounts.** Every quantity crossing the
-vault boundary is measured as a balance delta before and after, because SEP-56
-leaves fees and rounding to the implementation.
-</Step>
-<Step>
-**The vault is called only through SEP-56** — `query_asset`, `convert_to_assets`,
+**The vault is called only through SEP-56**. `query_asset`, `convert_to_assets`,
 `deposit` and `redeem`. Nothing vault-specific, so any compliant vault can back a
-market without an adapter. The asset address is read live from `query_asset`,
-**once per invocation**, rather than snapshotted — so there is nothing that can go
-stale, and a vault cannot name one asset on the way in and another on the way out
-of the same transaction.
+market. The asset address is read live from `query_asset`,
+**once per invocation** so there is nothing that can go
+stale.
 </Step>
 </Steps>
 
@@ -54,7 +46,7 @@ of the same transaction.
 
 <Callout type="warn">
 `exit_expired_to_asset` converts your **entire** vault-share balance up to
-`sweep_allowance` — including shares held for unrelated markets. **Size the
+`sweep_allowance`. This includes shares held for unrelated markets. **Size the
 allowance to the expected proceeds**, not higher.
 </Callout>
 
@@ -62,25 +54,21 @@ The reason is a transaction-budget trade-off. The yield manager authenticates th
 caller, so the amount it takes has to be a ceiling signed in advance rather than
 a delta measured mid-call. In exchange, it gathers loose shares with one cheap
 `transfer_from` and redeems the combined total in a **single** vault redemption
-instead of two — which is what brings the call inside Soroban's resource limits
+instead of two, which is what brings the call inside Soroban's resource limits
 when an LP position is involved.
 
 ## Transaction cost
 
 A zap's cost is dominated by how many times it makes the vault do real work.
-Against a lending vault like Blend, a deposit or redeem is a pool submission —
-reserve updates, position updates, emissions accounting — and even a rate *read*
+Against a lending vault like Blend, a deposit or redeem is a pool submission (reserve updates, position updates, emissions accounting) and even a rate *read*
 accrues interest and reads pool state.
 
 The governing principle is that **the rate is loaded once per invocation and
 threaded downward**, never re-fetched by each layer. The pool loads it once and
 hands it to the flash callbacks; the yield manager passes it on to the yield
-token. The underlying vault is therefore read at most once per transaction — and
-past maturity not at all, since the yield manager's rate is locked and answers
+token. The underlying vault is therefore read at most once per transaction (and
+past maturity not at all) since the yield manager's rate is locked and answers
 from its own storage.
-
-All eight zaps and all four share-denominated swaps simulate successfully against
-a Blend vault, the heaviest being `zap_asset_for_yt` at roughly 32M instructions.
 
 See [Vault integration](/protocol/vault-integration) for where that rate comes
 from and why the pool asks the yield manager rather than the vault.
