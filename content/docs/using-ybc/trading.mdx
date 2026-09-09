@@ -1,7 +1,7 @@
 ---
 title: Trading & liquidity
 description: Swapping PT and YT against a market's pool, and providing liquidity to it.
-icon: CandlestickChart
+icon: ChartCandlestick
 ---
 
 Every market has its own AMM pool. The pool trades **PT against V** on a
@@ -64,14 +64,12 @@ reserve cut.
 
 A few properties worth knowing before supplying:
 
-- **Reserves are state-tracked, not balance-read.** Tokens sent directly to the
+- **Reserves are not balance-read.** Tokens sent directly to the
   pool never enter pricing or share math, so donation attacks do nothing.
 - **`MINIMUM_LIQUIDITY` (100 shares) is burned on the first deposit**, and that
-  first deposit must exceed it. This is the standard defence against
-  first-depositor share inflation.
-- **The protocol's fee cut never enters LP accounting.** The reserve share of
-  each trade's fee is remitted to the treasury inline and excluded from the
-  stored reserves, so an LP withdrawal can never pay out protocol fees.
+  first deposit must exceed it. This is how first-depositor share inflation is prevented.
+- **The protocol's cut leaves at trade time**, not out of your position. By the
+  time you withdraw there is nothing left to deduct.
 - **The fee configuration is immutable.** Treasury address and reserve fee rate
   are written once by the pool constructor and have no setter. They can be read at entry knowing they can never change in a live market.
 

@@ -56,7 +56,7 @@ advance covers the rest of the mint and is repaid in PT.
 
 ## Callback safety
 
-**In one line:** only the registered pool can drive either callback, and every
+Only the registered pool can drive either callback, and every
 movement of user value inside a callback is independently authenticated against
 `user`.
 
@@ -74,23 +74,17 @@ created, so the trusted pool can never be swapped out.
 
 ## The rate hint
 
-The exchange rate is passed as an explicit argument into every PT/YT call made
-inside a callback, so those token contracts never call *back* into the yield
-manager for it. That call would be re-entry while the yield manager is on the
-stack, which the Soroban host rejects. The hint keeps the flow single-pass.
+The exchange rate is passed as an explicit argument into every PT/YT call inside
+a callback, so those contracts never call back into the yield manager for it.
+That would be re-entry while the yield manager is on the stack, which the Soroban
+host rejects. The hint keeps the flow single-pass.
 
-The inbound `vault_rate` is a misnomer: the pool does not read the vault, so the
-figure is the yield manager's own rate making a round trip. It reaches
-security-critical arithmetic — it divides `v_to_mint` — but the pool cannot
-supply any value except the one already in storage, so re-applying it is
-idempotent. The design previously relied on the pool passing a *raw* vault
-reading, a precondition that could be documented but not enforced.
+The same figure comes back on the callback itself, where it divides `v_to_mint`.
+That is safe because the pool sources it from `get_exchange_rate` and so cannot
+supply anything except the value already in storage — re-applying it is a no-op.
 
-**Pairing** holds by construction: `create_market` threads one `vault` value into
+Pairing holds by construction: `create_market` threads one `vault` value into
 both contracts, and `set_pool` is one-shot.
-
-Why the pool prices against the yield manager is covered in
-[Vault integration](/protocol/vault-integration).
 
 <Callout type="warn">
 The AMM and yield manager share the flash-callback ABI and are versioned as a

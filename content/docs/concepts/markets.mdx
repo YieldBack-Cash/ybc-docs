@@ -4,8 +4,6 @@ description: A market is one instance of the protocol, identified by a vault and
 icon: Layers
 ---
 
-import { Step, Steps } from 'fumadocs-ui/components/steps';
-
 A **market** is one instance of the protocol, uniquely identified by the pair
 `(vault, maturity)`.
 
@@ -23,33 +21,18 @@ Market creation is **permissionless**. Anyone may call `create_market` on the
 factory with a vault, a maturity, and the curve parameters (`current_apy`,
 `apy_min`, `apy_max`, `fee_apy`) that shape the pool's pricing.
 
-The factory then:
+All four contracts are deployed and wired together in that one call — the yield
+manager owning PT and YT, the pool registered with the yield manager. A market is
+never partially constructed: it either exists complete or not at all.
 
-<Steps>
-<Step>
-Validates the inputs. Maturity must be strictly in the future and within
-`MAX_MATURITY_HORIZON` (10 years); the AMM constructor bounds the APY band and
-the fee.
-</Step>
-<Step>
-Refuses a duplicate `(vault, maturity)`. At most one market exists per pair.
-</Step>
-<Step>
-Deploys the **yield manager**, whose constructor seeds the initial exchange rate
-from the vault.
-</Step>
-<Step>
-Deploys **PT** and **YT**, both owned by the yield manager.
-</Step>
-<Step>
-Deploys the **AMM pool** with the APY-derived curve parameters, and registers it
-with the yield manager as the sole trusted flash-swap driver.
-</Step>
-<Step>
-Records the market and emits `MarketCreated`, including the creator address so
-off-chain curation can decide which markets to surface.
-</Step>
-</Steps>
+Creation is refused unless
+
+- the maturity is strictly in the future and no more than 10 years out,
+- the APY band and fee are within their bounds, and
+- no market already exists for that `(vault, maturity)`.
+
+Success emits `MarketCreated`, including the creator's address so off-chain
+curation can decide which markets to surface.
 
 ## Isolation is the safety model
 
