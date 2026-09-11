@@ -7,6 +7,10 @@ icon: Repeat
 The AMM holds only PT and V. YT is created and destroyed on the fly, inside a
 single transaction, by pairing a PT flash swap with a yield-manager mint or burn.
 
+<FlashSwapSteps />
+
+The exact calls, step by step:
+
 ## Buying YT
 
 `Router::swap_v_for_yt` → `AMM::flash_swap_pt(receiver = YieldManager, …)`

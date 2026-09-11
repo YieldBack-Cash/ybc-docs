@@ -11,6 +11,8 @@ USDC, depositing 100 shares mints 105 PT and 105 YT.
 > It starts at the vault's rate, only ever moves **up**, and **freezes at
 > maturity**.
 
+<RateRatchet />
+
 **Live.** Each operation takes `max(stored, vault_rate)`. If the vault dips, the
 stored value holds where it was.
 

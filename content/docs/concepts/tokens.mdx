@@ -31,6 +31,8 @@ you hand over; the base asset is what PT and YT are denominated in.
 **Example.** A vault share is worth 1.05 USDC. You deposit 100 shares, and are
 minted 105 PT and 105 YT.
 
+<SplitCalculator />
+
 ## What each token is worth
 
 - **PT** approaches face value as maturity nears and trades below it before then.
@@ -38,6 +40,10 @@ minted 105 PT and 105 YT.
 - **YT** is worth the yield still expected between now and maturity. It decays to
   zero at maturity. You can buy exposure to the yield of a much larger position,
   which is what makes YT a leveraged rate bet.
+
+Drag through a market's life to see both at once:
+
+<MaturitySlider />
 
 <Callout type="info">
 The AMM's only reserves are PT and V. YT is synthesized from the `PT + YT = V` identity.
