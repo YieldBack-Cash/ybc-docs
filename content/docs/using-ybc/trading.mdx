@@ -38,6 +38,14 @@ receive YT. The pool advances the rest of the mint and is repaid in PT within th
 same transaction. The mechanism is described in full under
 [Flash swaps](/protocol/flash-swaps).
 
+### PT or YT? It depends on what the vault really earns
+
+PT pays the <Term k="apy">implied APY</Term> you bought at, whatever happens. YT pays the yield the vault
+actually earns, on a much larger position, so it wins when that beats the implied rate and
+loses when it falls short:
+
+<PayoffChart />
+
 ## Slippage
 
 Every user-facing swap takes an explicit bound and reverts if it is not met:
@@ -51,6 +59,11 @@ Every user-facing swap takes an explicit bound and reverts if it is not met:
 For [zaps](/using-ybc/zaps) the bound is expressed once, in base-asset terms
 (`min_asset_out` / `max_asset_in`), and covers pool price and vault rate together.
 
+Why a bound matters: the pool prices along a curve, so the bigger the trade, the further
+it moves the price.
+
+<TradeImpact />
+
 ## Providing liquidity
 
 ```
@@ -61,6 +74,8 @@ Router::withdraw  →  AMM::withdraw
 An LP position is a share of the pool's `(PT, V)` reserves; shares are tracked
 per user by the AMM. LPs earn the trading fee on both legs, minus the protocol's
 reserve cut.
+
+<LpShare />
 
 A few properties worth knowing before supplying:
 

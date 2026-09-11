@@ -10,3 +10,28 @@ html > body[data-scroll-locked] {
   margin-right: 0px !important;
   --removed-body-scroll-bar-size: 0px !important;
 }
+
+/* Explainer colours (components/explainers). The landing page's names, mapped onto the
+   Fumadocs theme so the same SVG scenes follow light and dark mode. PT is the lime leg,
+   YT the blue one, as in the app. */
+:root {
+  --ybc-lime: #5f7a12; /* darker on light backgrounds, so lime text stays readable */
+  --ybc-lime-ink: #ffffff; /* text on a lime fill */
+  --ybc-yt: #2f7bcf;
+}
+.dark {
+  --ybc-lime: #c9e04a;
+  --ybc-lime-ink: #0b0b0b;
+  --ybc-yt: #4a98e8;
+}
+@theme inline {
+  --color-lime: var(--ybc-lime);
+  --color-lime-ink: var(--ybc-lime-ink);
+  --color-yt: var(--ybc-yt);
+  --color-bg: var(--color-fd-background);
+  --color-surface: var(--color-fd-card);
+  --color-line: var(--color-fd-border);
+  --color-line-strong: color-mix(in oklab, var(--color-fd-foreground) 28%, transparent);
+  --color-ink: var(--color-fd-foreground);
+  --color-soft: var(--color-fd-muted-foreground);
+}
